@@ -11,4 +11,8 @@
 
 # Diagrams
 
-![fgh](image/Diagram/device-diagram.drawio.png)
+## Device 
+![device-diagram](image/Diagram/device-diagram.drawio.png)
+
+## `Scheduler.h`
+![fl-scheduler](image/Diagram/flowchart-scheduler.drawio.png)
