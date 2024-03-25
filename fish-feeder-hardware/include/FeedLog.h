@@ -10,7 +10,7 @@ class FeedLog
 {
 public:
     String filePath = "/feed-log.txt";
-    String maxTimeFilePath = "/flog-maxtime.txt";
+    String maxTimeFilePath = "/flmax.txt";
 
     FeedLog(NTPClient *timeClient);
     ~FeedLog();

@@ -5,20 +5,29 @@ FeedLog::FeedLog(NTPClient *timeClient)
     this->timeClient = timeClient;
     
     LittleFS.begin();
-    if (!LittleFS.exists(filePath))
+    
+    // Check log file, if not exist create it
+    File logFile = LittleFS.open(filePath, "r");
+    if (!logFile)
     {
-        File file = LittleFS.open(filePath, "w");
-        file.close();
+        logFile.close();
+        logFile = LittleFS.open(filePath, "w");
+        logFile.close();
     }
 
-    if (!LittleFS.exists(maxTimeFilePath))
+    // Check max time file, if not exist create it and set default value
+    File maxTimeFile = LittleFS.open(maxTimeFilePath, "r");
+    if (!maxTimeFile)
     {
-        File file = LittleFS.open(maxTimeFilePath, "w");
-        file.print(MAX_LOG_TIME);
-        file.close();
+        maxTimeFile.close();
+        maxTimeFile = LittleFS.open(maxTimeFilePath, "w");
+        maxTimeFile.print(MAX_LOG_TIME);
+        maxTimeFile.close();
     }
+    // If exist, get value
     else
     {
+        maxTimeFile.close();
         MAX_LOG_TIME = getMaxLogTime();
     }
 }
@@ -33,7 +42,7 @@ uint16_t FeedLog::getMaxLogTime()
     File file = LittleFS.open(maxTimeFilePath, "r");
     if (!file)
         return MAX_LOG_TIME;
-    return file.parseInt();
+    return file.readString().toInt();
 }
 
 bool FeedLog::setMaxLogTime(uint16_t days)
@@ -48,14 +57,13 @@ bool FeedLog::setMaxLogTime(uint16_t days)
 
 bool FeedLog::add(uint8_t amount)
 {
-    File file = LittleFS.open(filePath, "a");
+    File file = LittleFS.open(filePath, "a"); // Open file for appending
     if (!file)
     {
         return false;
     }
 
     timeClient->update();
-    file.seek(file.size());
     file.printf("%ld %dg\n", timeClient->getEpochTime(), amount);
     file.close();
     return true;
