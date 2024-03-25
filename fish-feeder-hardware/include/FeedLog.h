@@ -10,10 +10,26 @@ class FeedLog
 {
 public:
     String filePath = "/feed-log.txt";
-    uint8_t MAX_LOG_TIME = 30; // in days
+    String maxTimeFilePath = "/flog-maxtime.txt";
 
     FeedLog(NTPClient *timeClient);
     ~FeedLog();
+
+    /**
+     * @brief Set max log time
+     * 
+     * @param days 
+     * @return true 
+     * @return false 
+     */
+    bool setMaxLogTime(uint16_t days);
+
+    /**
+     * @brief Get max log time from file system
+     * 
+     * @return uint16_t 
+     */
+    uint16_t getMaxLogTime();
 
     /**
      * @brief Add a new log to the log file
@@ -49,6 +65,7 @@ public:
 
     private:
     NTPClient *timeClient = NULL;
+    uint8_t MAX_LOG_TIME = 30; // in days
 };
 
 

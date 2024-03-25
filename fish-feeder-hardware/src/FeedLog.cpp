@@ -3,17 +3,47 @@
 FeedLog::FeedLog(NTPClient *timeClient)
 {
     this->timeClient = timeClient;
+    
     LittleFS.begin();
     if (!LittleFS.exists(filePath))
     {
         File file = LittleFS.open(filePath, "w");
         file.close();
     }
+
+    if (!LittleFS.exists(maxTimeFilePath))
+    {
+        File file = LittleFS.open(maxTimeFilePath, "w");
+        file.print(MAX_LOG_TIME);
+        file.close();
+    }
+    else
+    {
+        MAX_LOG_TIME = getMaxLogTime();
+    }
 }
 
 FeedLog::~FeedLog()
 {
     LittleFS.end();
+}
+
+uint16_t FeedLog::getMaxLogTime()
+{
+    File file = LittleFS.open(maxTimeFilePath, "r");
+    if (!file)
+        return MAX_LOG_TIME;
+    return file.parseInt();
+}
+
+bool FeedLog::setMaxLogTime(uint16_t days)
+{
+    File file = LittleFS.open(maxTimeFilePath, "w");
+    if (!file)
+        return false;
+    file.print(days);
+    file.close();
+    return true;
 }
 
 bool FeedLog::add(uint8_t amount)
@@ -26,22 +56,17 @@ bool FeedLog::add(uint8_t amount)
 
     timeClient->update();
     file.seek(file.size());
-    file.printf("%d %dg", timeClient->getEpochTime(), amount);
+    file.printf("%ld %dg\n", timeClient->getEpochTime(), amount);
     file.close();
     return true;
 }
 
 String FeedLog::gets()
 {
-    String logs = "";
     File file = LittleFS.open(filePath, "r");
     if (!file)
-        return logs;
-
-    while (file.available())
-        logs += file.readStringUntil('\n');
-    file.close();
-    return logs;
+        return "";
+    return file.readString();
 }
 
 bool FeedLog::clearOld()
@@ -63,8 +88,6 @@ bool FeedLog::clearOld()
         uint32_t logTime = line.substring(0, line.indexOf(' ')).toInt();
         if (currentTime - logTime < maxLogTime)
             tempFile.println(line);
-        else
-            break;
     }
 
     file.close();
