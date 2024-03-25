@@ -4,7 +4,6 @@
 #include "stdint.h"
 #include <vector>
 #include "LittleFS.h"
-#include "WiFiUdp.h"
 #include "NTPClient.h"
 
 struct schedule_time_t
@@ -42,11 +41,8 @@ class Scheduler
 public:
     String filePath = "/schedules.txt";
     uint8_t MAX_TASKS = 10;
-
-    WiFiUDP ntpUDP;
-    NTPClient timeClient = NTPClient(ntpUDP, "pool.ntp.org", 7 * 3600);
     
-    Scheduler();
+    Scheduler(NTPClient *timeClient);
     ~Scheduler();
 
     /**
@@ -118,10 +114,22 @@ public:
      */
     void run();
 
+
+
+    /**
+     * @brief Print all tasks to serial
+     * 
+     * @param serial 
+     */
+    void printToSerial(Stream &stream);
+
+
 private:
     std::vector<schedule_task_t> tasks;
     std::function<void(uint8_t)> callback;
     File file;
+    NTPClient *timeClient;
+
     void openFile();
     void closeFile();
 
