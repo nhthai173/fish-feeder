@@ -18,7 +18,7 @@ void Scheduler::openFile()
 {
     if (!this->file)
     {
-        this->file = &LittleFS.open(filePath, "a");
+        this->file = LittleFS.open(filePath, "a");
     }
 }
 
@@ -26,8 +26,7 @@ void Scheduler::closeFile()
 {
     if (this->file)
     {
-        this->file->close();
-        this->file = nullptr;
+        this->file.close();
     }
 }
 
@@ -40,8 +39,8 @@ bool Scheduler::writeTaskToFile(schedule_task_t *task)
         return false;
     }
 
-    file->seek(file->size());
-    file->printf("%d|%d|%d|%d%d%d%d%d%d|%d|%d|%d\n",
+    file.seek(file.size());
+    file.printf("%d|%d|%d|%d%d%d%d%d%d%d|%d|%d|%d\n",
                  task->id,
                  task->time.hour,
                  task->time.minute,
@@ -118,7 +117,7 @@ schedule_task_t Scheduler::parseTask(String task)
     result.enabled = enabled.toInt();
     index++;
     String executed = "";
-    while (task[index] != '\n'  || task[index] != '\0' || index < task.length())
+    while (task[index] != '\n'  || task[index] != '\0' || (unsigned int)index < task.length())
     {
         executed += task[index];
         index++;
@@ -146,9 +145,9 @@ bool Scheduler::load()
 
     // Read file
     String line;
-    while (file->available())
+    while (file.available())
     {
-        line = file->readStringUntil('\n');
+        line = file.readStringUntil('\n');
         if (line.length() > 0)
         {
             schedule_task_t task = parseTask(line);
@@ -237,13 +236,13 @@ void Scheduler::run()
     {
         if (tasks[i].enabled)
         {
-            if (tasks[i].repeat.monday && dow == 1  ||
-                tasks[i].repeat.tuesday && dow == 2 ||
-                tasks[i].repeat.wednesday && dow == 3 ||
-                tasks[i].repeat.thursday && dow == 4  ||
-                tasks[i].repeat.friday && dow == 5  ||
-                tasks[i].repeat.saturday && dow == 6||
-                tasks[i].repeat.sunday && dow == 0)
+            if ((tasks[i].repeat.monday && dow == 1)    ||
+                (tasks[i].repeat.tuesday && dow == 2)   ||
+                (tasks[i].repeat.wednesday && dow == 3) ||
+                (tasks[i].repeat.thursday && dow == 4)  ||
+                (tasks[i].repeat.friday && dow == 5)    ||
+                (tasks[i].repeat.saturday && dow == 6)  ||
+                (tasks[i].repeat.sunday && dow == 0))
             {
                 if (tasks[i].time.hour == h && tasks[i].time.minute == m && !tasks[i].executed)
                 {
