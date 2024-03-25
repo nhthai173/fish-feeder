@@ -121,7 +121,7 @@ public:
 private:
     std::vector<schedule_task_t> tasks;
     std::function<void(uint8_t)> callback;
-    File *file = nullptr;
+    File *file = NULL;
     void openFile();
     void closeFile();
 
