@@ -124,6 +124,23 @@ public:
     void printToSerial(Stream &stream);
 
 
+    /**
+     * @brief Get the String object
+     * 
+     * @return String 
+     */
+    String getString();
+
+
+    /**
+     * @brief Parse a task from string
+     * 
+     * @param task 
+     * @return schedule_task_t 
+     */
+    schedule_task_t parseTask(String task);
+
+
 private:
     std::vector<schedule_task_t> tasks;
     std::function<void(uint8_t)> callback;
@@ -142,15 +159,6 @@ private:
      * @return false 
      */
     bool writeTaskToFile(schedule_task_t *task);
-    
-    
-    /**
-     * @brief Parse a task from string
-     * 
-     * @param task 
-     * @return schedule_task_t 
-     */
-    schedule_task_t parseTask(String task);
     
 };
 

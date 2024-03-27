@@ -254,7 +254,14 @@ uint8_t Scheduler::getTaskCount()
     return tasks.size();
 }
 
-
+String Scheduler::getString()
+{
+    openFile();
+    String result = "";
+    result = file.readString();
+    closeFile();
+    return result;
+}
 
 void Scheduler::printToSerial(Stream &stream)
 {
