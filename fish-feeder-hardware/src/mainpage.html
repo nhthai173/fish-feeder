@@ -103,7 +103,7 @@
         }
 
         .form-check-lg {
-            width: 60px!important;
+            width: 60px !important;
             height: 30px;
         }
 
@@ -238,7 +238,7 @@
             <div class="col main-view placeholder-glow">
 
                 <!-- Home Section -->
-                <section class="d-none fade show" id="home">
+                <section class="fade show" id="home">
 
                     <!-- <img src="" alt=""> -->
                     <div class="mb-3 placeholder" style="width: 200px; height: 200px;"></div>
@@ -322,7 +322,7 @@
 
 
                 <!-- Schedule Section -->
-                <section class="fade show" id="schedule">
+                <section class="d-none fade show" id="schedule">
 
                     <div class="modal fade" id="add-schedule-modal" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-fullscreen-sm-down">
@@ -417,66 +417,81 @@
         integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
 
     <script>
+        var wsLastCmd = '';
+        var ws = new WebSocket(`ws://${window.location.host}:81/`);
+        ws.addEventListener("message", (e) => {
+            console.log(e.data);
+            if (e.data == 'FEEDED') {
+                $('#feed-card').removeClass('disabled');
+                $('#feed-text').text('Cho ăn');
+                $('.loading').addClass('d-none');
+            }
+        });
+    </script>
+
+    <script>
 
         function showSection(section) {
-            $('section').removeClass('show')
+            $('section').removeClass('show');
             setTimeout(() => {
-                $('section').addClass('d-none')
-                $(`section#${section}`).removeClass('d-none')
+                $('section').addClass('d-none');
+                $(`section#${section}`).removeClass('d-none');
             }, 200);
             setTimeout(() => {
-                $(`section#${section}`).addClass('show')
+                $(`section#${section}`).addClass('show');
             }, 300);
         }
 
         // Section view
         $('[section-view]').click(function () {
-            showSection($(this).attr('section-view'))
+            let id = $(this).attr('section-view');
+            showSection($(this).attr('section-view'));
+            if (id == 'history')
+                ws.send('#LOGS');
+            if (id == 'schedule')
+                ws.send('#TASKS');
         })
 
         // Back to home
         $('.back-to-home').click(() => {
-            showSection('home')
+            showSection('home');
         })
 
         // Amount
         $('#amount').on('input', function () {
-            $('#amount-text').text(`${$(this).val()}g`)
+            $('#amount-text').text(`${$(this).val()}g`);
         })
         $('#amount').change(() => {
-            $('.loading .message').text(`Đã đặt lượng thức ăn: ${$('#amount').val()}g`)
-            $('.loading').removeClass('d-none')
-            $('#amount-card').addClass('disabled')
+            $('.loading .message').text(`Đã đặt lượng thức ăn: ${$('#amount').val()}g`);
+            $('.loading').removeClass('d-none');
+            $('#amount-card').addClass('disabled');
             setTimeout(() => {
-                $('.loading').addClass('d-none')
-                $('#amount-card').removeClass('disabled')
+                $('.loading').addClass('d-none');
+                $('#amount-card').removeClass('disabled');
             }, 3000);
         })
-        $('#amount').trigger('input')
+        $('#amount').trigger('input');
 
 
         // Feed
         $('#feed-card').click(() => {
-            $('#feed-text').text('Đang cho ăn...')
-            $('#feed-card').addClass('disabled')
-            $('.loading').removeClass('d-none')
-            $('.loading .message').text(`Đang cho ăn ${$('#amount').val()}g`)
-            setTimeout(() => {
-                $('#feed-card').removeClass('disabled');
-                $('#feed-text').text('Cho ăn');
-                $('.loading').addClass('d-none');
-            }, 2000);
+            let a = $('#amount').val();
+            ws.send(`#FEED ${a}`);
+            $('#feed-text').text('Đang cho ăn...');
+            $('#feed-card').addClass('disabled');
+            $('.loading').removeClass('d-none');
+            $('.loading .message').text(`Đang cho ăn ${a}g`);
         })
 
         // Add schedule modal
         $('.btn-add').click(() => {
-            $('#add-schedule-modal').modal('show')
+            $('#add-schedule-modal').modal('show');
         })
 
 
         // Add Schedule
         $('#schedule-amount').on('input', function () {
-            const v = $(this).val()
+            const v = $(this).val();
             const $l = $('#schedule-amount').parent().find('label')
             if (v)
                 $l.text(`Lượng thức ăn: ${v}g`)
