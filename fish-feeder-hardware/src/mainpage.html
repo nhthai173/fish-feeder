@@ -289,32 +289,14 @@
 
 
 
-                    <div class="card" section-view="history" id="history-card">
+                    <div class="card" section-view="history" id="history-card"
+                        style="max-height: 400px; overflow: hidden;">
                         <div class="card-body pb-0">
                             <div class="card-title d-flex justify-content-between mb-3">
                                 <h4>Lịch sử cho ăn</h4>
                                 <span class="expand-icon"></span>
                             </div>
-                            <div class="timeline">
-                                <div class="time"><span class="text-muted">17/03</span> 19:30</div>
-                                <div class="activity">5g</div>
-                            </div>
-                            <div class="timeline">
-                                <div class="time"><span class="text-muted">17/03</span> 19:30</div>
-                                <div class="activity">5g</div>
-                            </div>
-                            <div class="timeline">
-                                <div class="time"><span class="text-muted">17/03</span> 19:30</div>
-                                <div class="activity">5g</div>
-                            </div>
-                            <div class="timeline">
-                                <div class="time"><span class="text-muted">17/03</span> 19:30</div>
-                                <div class="activity">5g</div>
-                            </div>
-                            <div class="timeline">
-                                <div class="time"><span class="text-muted">17/03</span> 19:30</div>
-                                <div class="activity">5g</div>
-                            </div>
+                            <div class="timeline-container"></div>
                         </div>
                     </div>
 
@@ -365,7 +347,7 @@
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                                    <button type="button" class="btn btn-primary">Lưu</button>
+                                    <button type="button" class="btn btn-primary" id="save-task">Lưu</button>
                                 </div>
                             </div>
                         </div>
@@ -378,16 +360,20 @@
                     </div>
                     <div class="btn-add"></div>
 
-                    <div class="card">
-                        <div class="card-body d-flex align-items-center">
-                            <div class="d-flex flex-column w-100">
-                                <span class="fs-2">17:30</span>
-                                <span class="text-muted">2g | Hằng ngày</span>
+                    <div class="task-container">
+
+                        <!-- <div class="card">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="d-flex flex-column w-100">
+                                    <span class="fs-2">17:30</span>
+                                    <span class="text-muted">2g | Hằng ngày</span>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input form-check-lg" type="checkbox" role="switch" checked>
+                                </div>
                             </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input form-check-lg" type="checkbox" role="switch" checked>
-                            </div>
-                        </div>
+                        </div> -->
+
                     </div>
 
 
@@ -403,6 +389,9 @@
                     <div class="d-flex justify-content-center">
                         <h2>Lịch sử cho ăn</h2>
                     </div>
+                    <div class="d-flex justify-content-center mt-4">
+                        <div class="timeline-container" style="width: 150px;"></div>
+                    </div>
                 </section>
 
             </div>
@@ -413,8 +402,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
         crossorigin="anonymous"></script>
-    <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"
-        integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
 
     <script>
         var wsLastCmd = '';
@@ -425,6 +413,9 @@
                 $('#feed-card').removeClass('disabled');
                 $('#feed-text').text('Cho ăn');
                 $('.loading').addClass('d-none');
+            }
+            if (e.data.startsWith('TASK_ADDED')) {
+                getTasks()
             }
         });
     </script>
@@ -442,14 +433,88 @@
             }, 300);
         }
 
+        function getLogs() {
+            $('.timeline-container').empty()
+            $.ajax('/logs').done((data) => {
+                console.log(data)
+                const ndata = []
+                data.split('\n').forEach((line) => {
+                    if (line) {
+                        let [time, amount] = line.split(' ');
+                        time = parseInt(time);
+                        if (time < 1000000000)
+                            return
+                        ndata.push({ t: time - 7 * 3600, a: amount })
+                    }
+                })
+                ndata.sort((a, b) => b.t - a.t).forEach((log) => {
+                    const date = new Date(log.t * 1000);
+                    const time = `<span class="text-muted">${date.getDate()}/${date.getMonth() + 1}</span> ${date.toLocaleTimeString('vi-VN').slice(0, 5)}`;
+                    $('.timeline-container').append(`
+                        <div class="timeline">
+                            <div class="time">${time}</div>
+                            <div class="activity">${log.a}</div>
+                        </div>
+                    `)
+                })
+            })
+        }
+
+        function parseTask(str) {
+            console.log(str)
+            let [id, h, m, rstr, amount, state] = str.split('|');
+            let days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+            let repeat = [];
+            rstr.split('').forEach((x, i) => {
+                if (x === '1')
+                    repeat.push(days[i])
+            })
+            if (repeat.length == 7)
+                repeat = 'Hằng ngày'
+            else if (repeat.length == 1 && repeat[0] === 'Chủ nhật')
+                repeat = 'Mỗi Chủ nhật'
+            else
+                repeat = `Mỗi thứ ${repeat.join(', ')}`
+            return { id, h, m, repeat, amount, state }
+        }
+
+        function getTasks() {
+            $('.task-container').empty()
+            let tasks = []
+            $.ajax(`/schedules`).done((data) => {
+                console.log(data)
+                if (!data) return
+                if (!data.includes('\n'))
+                    tasks.push(parseTask(data))
+                else
+                    data.split('\n').map((d) => {
+                        if (!d) return
+                        tasks.push(parseTask(d))
+                    })
+                if (tasks.length)
+                    tasks.forEach((task) => {
+                        let time = `${task.h}:${task.m}`;
+                        let checked = task.state == 1 ? 'checked' : '';
+                        $('.task-container').append(`
+                        <div class="card mb-3">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="d-flex flex-column w-100">
+                                    <span class="fs-2">${time}</span>
+                                    <span class="text-muted">${task.amount}g | ${task.repeat}</span>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input form-check-lg" type="checkbox" role="switch" ${checked}>
+                                </div>
+                            </div>
+                        </div>
+                    `)
+                    })
+            })
+        }
+
         // Section view
         $('[section-view]').click(function () {
-            let id = $(this).attr('section-view');
             showSection($(this).attr('section-view'));
-            if (id == 'history')
-                ws.send('#LOGS');
-            if (id == 'schedule')
-                ws.send('#TASKS');
         })
 
         // Back to home
@@ -516,6 +581,32 @@
             }
         })
 
+        // Add task
+        $('#save-task').click(() => {
+            const time = $('#schedule-time').val();
+            const h = parseInt(time.slice(0, 2));
+            const m = parseInt(time.slice(3, 5));
+            const amount = $('#schedule-amount').val();
+            const repeat = $('#schedule-repeat').val();
+            let rstr = ''
+            for (let i = 0; i < 7; i++) {
+                if (repeat.includes(String(i)))
+                    rstr += '1'
+                else
+                    rstr += '0'
+            }
+            $('#schedule-time').val('')
+            $('#schedule-amount').val(2)
+            $('#schedule-repeat').val('')
+            $('#add-schedule-modal').modal('hide');
+            ws.send(`#TASK ${Math.floor(Math.random() * 100)}|${h}|${m}|${rstr}|${amount}|1|0`);
+        })
+
+    </script>
+
+    <script>
+        getLogs()
+        getTasks()
     </script>
 
 </body>
