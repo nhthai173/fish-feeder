@@ -4,6 +4,7 @@ Feeder::Feeder(uint8_t servo_pin)
 {
     pinMode(servo_pin, OUTPUT);
     servo.attach(servo_pin);
+    servo.write(0);
 }
 
 Feeder::~Feeder()
@@ -20,7 +21,7 @@ void Feeder::feed(uint8_t amount, std::function<void()> callback)
     this->amount = amount;
     this->callback = callback;
     startTime = millis();
-    duration = amount * 1000 / 100;
+    duration = amount * 1000 / 5;
 
     _feed();
 }

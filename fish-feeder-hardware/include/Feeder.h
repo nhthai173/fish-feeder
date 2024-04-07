@@ -11,9 +11,24 @@ public:
 
     Feeder(uint8_t servo_pin);
     ~Feeder();
-
+     /**
+      * @brief Feed immediately
+      * 
+      * @param amount amount of food to feed
+      * @param callback callback function to be called when feeding is done
+      */
     void feed(uint8_t amount, std::function<void()> callback = NULL);
+    
+    /**
+     * @brief Put this function in loop() to run the feeder
+     * 
+     */
     void run();
+
+    /**
+     * @brief Stop feeding immediately
+     * 
+     */
     void stop();
 private:
     Servo servo;
