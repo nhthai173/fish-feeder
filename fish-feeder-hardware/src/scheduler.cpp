@@ -16,13 +16,16 @@ Scheduler::~Scheduler()
     LittleFS.end();
 }
 
-void Scheduler::openFile()
+void Scheduler::openFile(bool overwrite)
 {
     if (this->file.isFile())
     {
         this->file.close();
     }
-    this->file = LittleFS.open(filePath, "a+");
+    if (overwrite)
+        this->file = LittleFS.open(filePath, "w+");
+    else
+        this->file = LittleFS.open(filePath, "a+");
 }
 
 void Scheduler::closeFile()
@@ -33,9 +36,9 @@ void Scheduler::closeFile()
     }
 }
 
-bool Scheduler::writeTaskToFile(schedule_task_t *task)
+bool Scheduler::writeTaskToFile(schedule_task_t *task, bool overwrite)
 {
-    openFile();
+    openFile(overwrite);
     if (!file || !file.isFile())
     {
         Serial.println("Failed to open file for writing");
@@ -148,13 +151,20 @@ bool Scheduler::load()
     return true;
 }
 
-bool Scheduler::save()
+bool Scheduler::save(bool overwrite)
 {
+    // Clear file
+    if (tasks.size() == 0 && overwrite)
+    {
+        openFile(true);
+    }
+
     for (uint8_t i = 0; i < tasks.size(); i++)
     {
-        if (!writeTaskToFile(&tasks[i]))
+        if (!writeTaskToFile(&tasks[i], overwrite))
             return false;
     }
+    
     closeFile();
     return true;
 }
@@ -192,7 +202,7 @@ bool Scheduler::removeTask(uint8_t id)
     }
 
     tasks.erase(tasks.begin() + index);
-    return save();
+    return save(true);
 }
 
 bool Scheduler::updateTask(uint8_t id, schedule_task_t task)
@@ -202,7 +212,7 @@ bool Scheduler::updateTask(uint8_t id, schedule_task_t task)
         if (tasks[i].id == id)
         {
             tasks[i] = task;
-            return save();
+            return save(true);
         }
     }
     Serial.println("Task not found");
@@ -230,7 +240,7 @@ void Scheduler::run()
             {
                 if (tasks[i].time.hour == h && tasks[i].time.minute == m && !tasks[i].executed)
                 {
-                    callback(tasks[i].id);
+                    callback(tasks[i]);
                     tasks[i].executed = true;
                     anychange = true;
                 }

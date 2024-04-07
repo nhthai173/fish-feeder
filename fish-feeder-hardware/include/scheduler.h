@@ -99,10 +99,11 @@ public:
     /**
      * @brief Save tasks to file
      * 
+     * @param overwrite 
      * @return true 
      * @return false 
      */
-    bool save();
+    bool save(bool overwrite = false);
 
     /**
      * @brief Run the scheduler
@@ -149,7 +150,7 @@ private:
     File file;
     NTPClient *timeClient;
 
-    void openFile();
+    void openFile(bool overwrite = false);
     void closeFile();
 
     /**
@@ -160,7 +161,7 @@ private:
      * @return true 
      * @return false 
      */
-    bool writeTaskToFile(schedule_task_t *task);
+    bool writeTaskToFile(schedule_task_t *task, bool overwrite = false);
     
 };
 
