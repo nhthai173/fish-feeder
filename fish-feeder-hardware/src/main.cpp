@@ -17,7 +17,7 @@
 
 #define SERVO_PIN D1
 #define SENSOR_PIN D2
-#define BUTTON_PIN D0
+#define BUTTON_PIN D3
 
 WiFiUDP ntpUDP;
 NTPClient timeClient = NTPClient(ntpUDP, "pool.ntp.org", 7 * 3600);
@@ -33,20 +33,19 @@ void wsEventHandler(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 void feed(uint8_t amount, std::function<void()> callback);
 void feedAutomatically(schedule_task_t task);
 
-bool buttonState;
-bool lastButtonState = LOW;
+bool buttonState = HIGH;
+bool lastButtonState = HIGH;
 unsigned long lastDebounceTime = 0;
 unsigned long debounceDelay = 50;
 
 void setup()
 {
-
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-
   Serial.begin(115200);
   while (!Serial)
     delay(10);
+
+  pinMode(SENSOR_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   /* ====== Wifi begin manualy ====== */
   // Serial.print("Connecting to WiFi...");
@@ -128,13 +127,15 @@ void loop()
     if (reading != buttonState)
     {
       buttonState = reading;
+      Serial.printf("Button state: %d\n", buttonState);
       if (buttonState == LOW)
       {
-        feed(30, []()
-             { Serial.println("Feeded"); });
+        feed(2, []()
+             { Serial.println("Feeded via button"); });
       }
     }
   }
+  lastButtonState = reading;
 }
 
 void wsEventHandler(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
@@ -149,10 +150,12 @@ void wsEventHandler(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 
   /* === New client connected === */
   case WStype_CONNECTED:
+  {
     IPAddress ip = webSocket.remoteIP(num);
     Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
     webSocket.sendTXT(num, "Connected");
     break;
+  }
 
   case WStype_TEXT:
     Serial.printf("[%u] get Text: %s\n", num, payload);
