@@ -15,16 +15,13 @@
 
 #include "mainpage.h"
 
-
 #define SERVO_PIN D1
 #define SENSOR_PIN D2
 #define BUTTON_PIN D0
 
-
 WiFiUDP ntpUDP;
 NTPClient timeClient = NTPClient(ntpUDP, "pool.ntp.org", 7 * 3600);
 ESP8266WebServer server(80);
-
 WebSocketsServer webSocket = WebSocketsServer(81);
 
 SimpleTimer timer;
@@ -32,9 +29,9 @@ FeedLog feedLog(&timeClient);
 Scheduler scheduler(&timeClient);
 Feeder feeder(SERVO_PIN);
 
-void _webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length);
-void mainLoop();
+void wsEventHandler(uint8_t num, WStype_t type, uint8_t *payload, size_t length);
 void feed(uint8_t amount, std::function<void()> callback);
+void feedAutomatically(schedule_task_t task);
 
 bool buttonState;
 bool lastButtonState = LOW;
@@ -45,7 +42,6 @@ void setup()
 {
 
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(SENSOR_PIN, INPUT_PULLUP);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   Serial.begin(115200);
@@ -64,10 +60,14 @@ void setup()
   /* ====== Wait for wifi connection ====== */
   WiFiManager wifiManager;
 
-  // // Reset wifimanager
+  // Reset wifimanager
+  // WiFi.disconnect();
   // wifiManager.resetSettings();
-  String hotspotName = "Fish Feeder_" + String(ESP.getChipId(), HEX);
-  wifiManager.autoConnect(hotspotName.c_str());
+  // ESP.eraseConfig();
+  // ESP.reset();
+  // ESP.restart();
+
+  wifiManager.autoConnect(String("Fish Feeder_" + String(ESP.getChipId(), HEX)).c_str());
 
   // Print local IP
   Serial.println(WiFi.localIP());
@@ -83,36 +83,6 @@ void setup()
   server.on("/schedules", []()
             { server.send(200, "text/plain", scheduler.getString()); });
 
-  server.on("/addtask", []()
-            {
-    schedule_task_t task;
-    task.id = rand() % 100;
-    task.time.hour = 21;
-    task.time.minute = 0;
-    task.repeat.monday = true;
-    task.repeat.tuesday = true;
-    task.repeat.wednesday = true;
-    task.repeat.thursday = true;
-    task.repeat.friday = true;
-    task.repeat.saturday = true;
-    task.repeat.sunday = true;
-    task.amount = 3;
-    task.enabled = true;
-    task.executed = false;
-    bool result = scheduler.addTask(task);
-
-    if (!result)
-    {
-      server.send(500, "text/plain", "Failed to add task");
-      return;
-    }
-
-    timer.setTimeout(2000, [](){
-      scheduler.printToSerial(Serial);
-    });
-
-    server.send(200, "text/plain", "Task added " + String(task.id)); });
-
   server.onNotFound([]()
                     { server.send(404, "text/plain", "404: Not found"); });
 
@@ -122,7 +92,9 @@ void setup()
   timeClient.begin();
 
   webSocket.begin();
-  webSocket.onEvent(_webSocketEvent);
+  webSocket.onEvent(wsEventHandler);
+
+  scheduler.setCallback(feedAutomatically);
 
   timer.setTimeout(1000, []()
                    {
@@ -133,7 +105,10 @@ void setup()
     Serial.println("======== Scheduler ========");
     scheduler.printToSerial(Serial); });
 
-  timer.setInterval(300, mainLoop);
+  timer.setInterval(1000, []()
+                    { 
+                      timeClient.update();
+                      scheduler.run(); });
 }
 
 void loop()
@@ -148,49 +123,46 @@ void loop()
   {
     lastDebounceTime = millis();
   }
-  if ((millis() - lastDebounceTime) > debounceDelay) {
-    if (reading != buttonState) {
+  if ((millis() - lastDebounceTime) > debounceDelay)
+  {
+    if (reading != buttonState)
+    {
       buttonState = reading;
-      if (buttonState == LOW) {
-        feed(30, [](){
-          Serial.println("Feeded");
-        });
+      if (buttonState == LOW)
+      {
+        feed(30, []()
+             { Serial.println("Feeded"); });
       }
     }
   }
-
-
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    digitalWrite(LED_BUILTIN, LOW);
-  }
-  else
-  {
-    digitalWrite(LED_BUILTIN, HIGH);
-  }
 }
 
-void _webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
+void wsEventHandler(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 {
   switch (type)
   {
+
+  /* === Client disconnected === */
   case WStype_DISCONNECTED:
     Serial.printf("[%u] Disconnected!\n", num);
     break;
+
+  /* === New client connected === */
   case WStype_CONNECTED:
-  {
     IPAddress ip = webSocket.remoteIP(num);
     Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
-    // send message to client
     webSocket.sendTXT(num, "Connected");
-  }
-  break;
+    break;
+
   case WStype_TEXT:
     Serial.printf("[%u] get Text: %s\n", num, payload);
     String message = String((char *)(payload));
+
+    /* === Feed command === */
     if (message.startsWith("#FEED"))
     {
-      // #FEED <n>
+      // #FEED <amount>
+      // Respond: FEEDING or FEEDED
       webSocket.broadcastTXT("FEEDING");
       feed(
           message.substring(6).toInt(),
@@ -199,24 +171,47 @@ void _webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length
             webSocket.broadcastTXT("FEEDED");
           });
     }
+
+    /* === Add task command === */
     if (message.startsWith("#TASK"))
     {
-      // #TASK <id>|<hour>|<minute>|<repeat>|<amount>|<enabled>
+      // #TASK <id>|<hour>|<minute>|<repeat>|<amount>|<enabled>|<excuted>
+      // Respond: TASK_ADDED_<id> or TASK_FAILED
       schedule_task_t task = scheduler.parseTask(message.substring(6));
       if (task.id == 0)
       {
-        webSocket.sendTXT(num, "Invalid task format");
+        webSocket.sendTXT(num, "TASK_FAILED invalid format");
         break;
       }
       bool result = scheduler.addTask(task);
       if (!result)
       {
-        webSocket.sendTXT(num, "Failed to add task");
+        webSocket.sendTXT(num, "TASK_FAILED failed to add task");
         break;
       }
-      uint8_t* ret = (uint8_t*)("Task added " + String(task.id)).c_str();
-      webSocket.sendTXT(num, ret, sizeof(ret));
+      webSocket.broadcastTXT(String("TASK_ADDED_" + String(task.id)).c_str());
     }
+
+    /* === Remove task command === */
+    if (message.startsWith("#RMTASK"))
+    {
+      // #RMTASK <id>
+      // Respond: TASK_REMOVED_<id> or RMTASK_FAILED
+      uint8_t id = message.substring(8).toInt();
+      if (id <= 0)
+      {
+        webSocket.sendTXT(num, "RMTASK_FAILED invalid id");
+        break;
+      }
+      bool result = scheduler.removeTask(id);
+      if (!result)
+      {
+        webSocket.sendTXT(num, "RMTASK_FAILED failed to remove task");
+        break;
+      }
+      webSocket.broadcastTXT(String("TASK_REMOVED_" + String(id)).c_str());
+    }
+
     break;
   }
 }
@@ -227,7 +222,8 @@ void feed(uint8_t amount, std::function<void()> callback)
   feedLog.add(amount);
 }
 
-void mainLoop()
+void feedAutomatically(schedule_task_t task)
 {
-  scheduler.run();
+  feed(task.amount, [task]()
+       { Serial.printf("Feeded automatically %dg\n", task.amount); });
 }
