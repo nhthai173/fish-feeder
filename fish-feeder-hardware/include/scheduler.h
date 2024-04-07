@@ -6,6 +6,8 @@
 #include "LittleFS.h"
 #include "NTPClient.h"
 
+#define NULL_TASK {0, {0, 0}, {0, 0, 0, 0, 0, 0, 0}, 0, false, false}
+
 struct schedule_time_t
 {
     uint8_t hour;
@@ -78,7 +80,7 @@ public:
      * 
      * @param callback 
      */
-    void setCallback(std::function<void(uint8_t)> callback);
+    void setCallback(std::function<void(schedule_task_t)> callback);
     
     
     /**
@@ -103,18 +105,18 @@ public:
     bool save();
 
     /**
-     * @brief Update time from NTP server
-     * 
-     */
-    void updateTime();
-
-    /**
      * @brief Run the scheduler
      * 
      */
     void run();
 
-
+    /**
+     * @brief Get the Task By task id
+     * 
+     * @param id 
+     * @return schedule_task_t 
+     */
+    schedule_task_t getTaskById(uint8_t id);
 
     /**
      * @brief Print all tasks to serial
@@ -143,7 +145,7 @@ public:
 
 private:
     std::vector<schedule_task_t> tasks;
-    std::function<void(uint8_t)> callback;
+    std::function<void(schedule_task_t)> callback;
     File file;
     NTPClient *timeClient;
 

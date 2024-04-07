@@ -108,7 +108,7 @@ schedule_task_t Scheduler::parseTask(String task)
     return result;
 }
 
-void Scheduler::setCallback(std::function<void(uint8_t)> callback)
+void Scheduler::setCallback(std::function<void(schedule_task_t)> callback)
 {
     this->callback = callback;
 }
@@ -209,11 +209,6 @@ bool Scheduler::updateTask(uint8_t id, schedule_task_t task)
     return false;
 }
 
-void Scheduler::updateTime()
-{
-    timeClient->update();
-}
-
 void Scheduler::run()
 {
     uint8_t h = timeClient->getHours();
@@ -240,6 +235,11 @@ void Scheduler::run()
                     anychange = true;
                 }
             }
+            else if (tasks[i].executed)
+            {
+                tasks[i].executed = false;
+                anychange = true;
+            }
         }
     }
 
@@ -247,6 +247,18 @@ void Scheduler::run()
     {
         save();
     }
+}
+
+schedule_task_t Scheduler::getTaskById(uint8_t id)
+{
+    for (uint8_t i = 0; i < tasks.size(); i++)
+    {
+        if (tasks[i].id == id)
+        {
+            return tasks[i];
+        }
+    }
+    return NULL_TASK;
 }
 
 uint8_t Scheduler::getTaskCount()
