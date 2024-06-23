@@ -1,10 +1,10 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
-#include "stdint.h"
+#include <Arduino.h>
 #include <vector>
-#include "LittleFS.h"
-#include "NTPClient.h"
+#include <LittleFS.h>
+#include <NTPClient.h>
 
 #define NULL_TASK {0, {0, 0}, {0, 0, 0, 0, 0, 0, 0}, 0, false, false}
 
@@ -44,7 +44,7 @@ public:
     String filePath = "/schedules.txt";
     uint8_t MAX_TASKS = 10;
     
-    Scheduler(NTPClient *timeClient);
+    explicit Scheduler(NTPClient *timeClient);
     ~Scheduler();
 
     /**
@@ -97,13 +97,13 @@ public:
     bool load();
 
     /**
-     * @brief Save tasks to file
+     * @brief Overwrite the file with the current tasks
      * 
      * @param overwrite 
      * @return true 
      * @return false 
      */
-    bool save(bool overwrite = false);
+    bool save();
 
     /**
      * @brief Run the scheduler
@@ -141,7 +141,7 @@ public:
      * @param task 
      * @return schedule_task_t 
      */
-    schedule_task_t parseTask(String task);
+    static schedule_task_t parseTask(const String& task);
 
 
 private:
@@ -161,7 +161,7 @@ private:
      * @return true 
      * @return false 
      */
-    bool writeTaskToFile(schedule_task_t *task, bool overwrite = false);
+    bool writeTaskToFile(schedule_task_t *task);
     
 };
 

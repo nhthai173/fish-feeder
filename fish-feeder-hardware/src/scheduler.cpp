@@ -18,9 +18,14 @@ Scheduler::~Scheduler()
 
 void Scheduler::openFile(bool overwrite)
 {
-    if (this->file.isFile())
+    if (this->file && this->file.isFile())
     {
-        this->file.close();
+        if (overwrite) {
+            this->file.close();
+            this->file = LittleFS.open(filePath, "w+");
+        } else {
+            return; // File already opened
+        }
     }
     if (overwrite)
         this->file = LittleFS.open(filePath, "w+");
@@ -36,15 +41,14 @@ void Scheduler::closeFile()
     }
 }
 
-bool Scheduler::writeTaskToFile(schedule_task_t *task, bool overwrite)
+bool Scheduler::writeTaskToFile(schedule_task_t *task)
 {
-    openFile(overwrite);
     if (!file || !file.isFile())
     {
         Serial.println("Failed to open file for writing");
         return false;
     }
-    
+    file.seek(file.size());
     file.printf("%d|%d|%d|%d%d%d%d%d%d%d|%d|%d|%d\n",
                  task->id,
                  task->time.hour,
@@ -63,9 +67,9 @@ bool Scheduler::writeTaskToFile(schedule_task_t *task, bool overwrite)
     return true;
 }
 
-schedule_task_t Scheduler::parseTask(String task)
+schedule_task_t Scheduler::parseTask(const String& task)
 {
-    schedule_task_t result;
+    schedule_task_t result{};
     result.id = 0;
     uint8_t count = 0;
     int last_pos = 0;
@@ -113,7 +117,7 @@ schedule_task_t Scheduler::parseTask(String task)
 
 void Scheduler::setCallback(std::function<void(schedule_task_t)> callback)
 {
-    this->callback = callback;
+    this->callback = std::move(callback);
 }
 
 bool Scheduler::load()
@@ -151,18 +155,18 @@ bool Scheduler::load()
     return true;
 }
 
-bool Scheduler::save(bool overwrite)
+bool Scheduler::save()
 {
-    // Clear file
-    if (tasks.size() == 0 && overwrite)
+    openFile(true);
+    if (!file || !file.isFile())
     {
-        openFile(true);
+        Serial.println("Failed to open file for writing");
+        return false;
     }
 
-    for (uint8_t i = 0; i < tasks.size(); i++)
+    for (schedule_task_t task : tasks)
     {
-        if (!writeTaskToFile(&tasks[i], overwrite))
-            return false;
+        writeTaskToFile(&task);
     }
     
     closeFile();
@@ -178,6 +182,7 @@ bool Scheduler::addTask(schedule_task_t task)
     }
 
     tasks.push_back(task);
+    openFile();
     bool ret = writeTaskToFile(&task);
     closeFile();
     return ret;
@@ -202,17 +207,17 @@ bool Scheduler::removeTask(uint8_t id)
     }
 
     tasks.erase(tasks.begin() + index);
-    return save(true);
+    return save();
 }
 
 bool Scheduler::updateTask(uint8_t id, schedule_task_t task)
 {
-    for (uint8_t i = 0; i < tasks.size(); i++)
+    for (schedule_task_t t : tasks)
     {
-        if (tasks[i].id == id)
+        if (t.id == id)
         {
-            tasks[i] = task;
-            return save(true);
+            t = task;
+            return save();
         }
     }
     Serial.println("Task not found");
@@ -226,29 +231,30 @@ void Scheduler::run()
     uint8_t dow = timeClient->getDay(); // 0 is sunday
     bool anychange = false;
 
-    for (uint8_t i = 0; i < tasks.size(); i++)
+    for (schedule_task_t & task : tasks)
     {
-        if (tasks[i].enabled)
+        if (task.enabled)
         {
-            if ((tasks[i].repeat.monday && dow == 1)    ||
-                (tasks[i].repeat.tuesday && dow == 2)   ||
-                (tasks[i].repeat.wednesday && dow == 3) ||
-                (tasks[i].repeat.thursday && dow == 4)  ||
-                (tasks[i].repeat.friday && dow == 5)    ||
-                (tasks[i].repeat.saturday && dow == 6)  ||
-                (tasks[i].repeat.sunday && dow == 0))
+            if ((task.repeat.monday && dow == 1)    ||
+                (task.repeat.tuesday && dow == 2)   ||
+                (task.repeat.wednesday && dow == 3) ||
+                (task.repeat.thursday && dow == 4)  ||
+                (task.repeat.friday && dow == 5)    ||
+                (task.repeat.saturday && dow == 6)  ||
+                (task.repeat.sunday && dow == 0))
             {
-                if (tasks[i].time.hour == h && tasks[i].time.minute == m && !tasks[i].executed)
+                if (task.time.hour == h && task.time.minute == m)
                 {
-                    callback(tasks[i]);
-                    tasks[i].executed = true;
+                    if (!task.executed) {
+                        task.executed = true;
+                        anychange = true;
+                        if (callback)
+                            callback(task);
+                    }
+                } else if (task.executed) {
+                    task.executed = false;
                     anychange = true;
                 }
-            }
-            else if (tasks[i].executed)
-            {
-                tasks[i].executed = false;
-                anychange = true;
             }
         }
     }
@@ -261,11 +267,11 @@ void Scheduler::run()
 
 schedule_task_t Scheduler::getTaskById(uint8_t id)
 {
-    for (uint8_t i = 0; i < tasks.size(); i++)
+    for (schedule_task_t task : tasks)
     {
-        if (tasks[i].id == id)
+        if (task.id == id)
         {
-            return tasks[i];
+            return task;
         }
     }
     return NULL_TASK;
@@ -288,22 +294,22 @@ String Scheduler::getString()
 void Scheduler::printToSerial(Stream &stream)
 {
     stream.printf("Task count: %d\n\n", tasks.size());
-    for (uint8_t i = 0; i < tasks.size(); i++)
+    for (schedule_task_t & task : tasks)
     {
         stream.printf("Task %d: %02d:%02d\nrepeat: %d|%d|%d|%d|%d|%d|%d\namount: %d\nenabled: %d\nexecuted: %d\n\n",
-                      tasks[i].id,
-                      tasks[i].time.hour,
-                      tasks[i].time.minute,
-                      tasks[i].repeat.monday,
-                      tasks[i].repeat.tuesday,
-                      tasks[i].repeat.wednesday,
-                      tasks[i].repeat.thursday,
-                      tasks[i].repeat.friday,
-                      tasks[i].repeat.saturday,
-                      tasks[i].repeat.sunday,
-                      tasks[i].amount,
-                      tasks[i].enabled,
-                      tasks[i].executed);
+                      task.id,
+                      task.time.hour,
+                      task.time.minute,
+                      task.repeat.monday,
+                      task.repeat.tuesday,
+                      task.repeat.wednesday,
+                      task.repeat.thursday,
+                      task.repeat.friday,
+                      task.repeat.saturday,
+                      task.repeat.sunday,
+                      task.amount,
+                      task.enabled,
+                      task.executed);
     }
 
     Serial.println("======== Read from file ========");
