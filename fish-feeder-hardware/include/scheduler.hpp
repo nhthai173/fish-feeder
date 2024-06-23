@@ -1,12 +1,15 @@
-#ifndef SCHEDULER_H
-#define SCHEDULER_H
+#pragma once
+
+#ifndef  SCHEDULER_HPP
+#define SCHEDULER_HPP
 
 #include <Arduino.h>
 #include <vector>
 #include <LittleFS.h>
 #include <NTPClient.h>
 
-#define NULL_TASK {0, {0, 0}, {0, 0, 0, 0, 0, 0, 0}, 0, false, false}
+class ScheduleTaskArgsBase;
+template <class T = ScheduleTaskArgsBase> class Scheduler;
 
 struct schedule_time_t
 {
@@ -25,19 +28,36 @@ struct schedule_repeat_t
     bool sunday;
 };
 
-struct schedule_task_t
+template <typename T = ScheduleTaskArgsBase> struct schedule_task_t
 {
     uint8_t id;
     schedule_time_t time;
     schedule_repeat_t repeat;
-    uint8_t amount;
+    T* args; // extended from ScheduleTaskArgsBase
     bool enabled;
     bool executed;
 };
 
 
 
-class Scheduler
+/**
+ * @brief Base class for task arguments. extend this class to add more arguments to the task
+ *
+ */
+class ScheduleTaskArgsBase
+{
+public:
+    ScheduleTaskArgsBase() = default;
+
+    virtual void parse(String& args) { }
+
+    virtual String toString() { return "NULL"; }
+
+};
+
+
+
+template <typename T> class Scheduler
 {
 
 public:
@@ -54,7 +74,7 @@ public:
      * @return true 
      * @return false 
      */
-    bool addTask(schedule_task_t task);
+    bool addTask(schedule_task_t<T> task);
     
     /**
      * @brief Remove a task from the schedule by its id
@@ -73,14 +93,14 @@ public:
      * @return true 
      * @return false 
      */
-    bool updateTask(uint8_t id, schedule_task_t task);
+    bool updateTask(uint8_t id, schedule_task_t<T> task);
     
     /**
      * @brief Set the Callback object
      * 
      * @param callback 
      */
-    void setCallback(std::function<void(schedule_task_t)> callback);
+    void setCallback(std::function<void(schedule_task_t<T>)> callback);
     
     
     /**
@@ -117,7 +137,7 @@ public:
      * @param id 
      * @return schedule_task_t 
      */
-    schedule_task_t getTaskById(uint8_t id);
+    schedule_task_t<T> getTaskById(uint8_t id);
 
     /**
      * @brief Print all tasks to serial
@@ -141,14 +161,14 @@ public:
      * @param task 
      * @return schedule_task_t 
      */
-    static schedule_task_t parseTask(const String& task);
+    static schedule_task_t<T> parseTask(const String& task);
 
 
 private:
-    std::vector<schedule_task_t> tasks;
-    std::function<void(schedule_task_t)> callback;
+    std::vector<schedule_task_t<T>> tasks;
+    std::function<void(schedule_task_t<T>)> callback;
     File file;
-    NTPClient *timeClient;
+    NTPClient *timeClient{};
 
     void openFile(bool overwrite = false);
     void closeFile();
@@ -161,10 +181,10 @@ private:
      * @return true 
      * @return false 
      */
-    bool writeTaskToFile(schedule_task_t *task);
+    bool writeTaskToFile(schedule_task_t<T> *task);
     
 };
 
+#include "scheduler.tpp"
 
-
-#endif
+#endif //SCHEDULER_HPP
